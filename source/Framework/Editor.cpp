@@ -9,7 +9,7 @@ Editor::Editor(Scene* pScene)
 {
 	ImGuiStyleSettings();
 
-	LoadModelFilePaths("Assets/Models/", "Assets/Models/");
+	//LoadModelFilePaths("Assets/Models/", "Assets/Models/");
 }
 
 Editor::~Editor()
@@ -18,7 +18,11 @@ Editor::~Editor()
 void Editor::Update(float deltaTime)
 {
 	this->deltaTime = deltaTime;
-	ModelSelectionWindow();
+
+	ImGui::Begin("FPS");
+
+	ImGui::Text("FPS: %f", 1 / deltaTime);
+	ImGui::End();
 }
 
 void Editor::SetScene(Scene* newScene)

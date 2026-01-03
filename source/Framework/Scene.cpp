@@ -13,12 +13,6 @@ Scene::Scene(Renderer* pRenderer, uint32_t width, uint32_t height)
 	// レンダリングを開始する前にライトバッファが適切に更新されるようにするため
 	// デフォルトではこれをtrueに設定
 	m_IsEditedLight = true;
-
-
-	std::string path = "assets/models/GroundPlane/plane.gltf";
-	AddModel(path);
-	path = "assets/models/SciFiHelm/SciFiHelmet.gltf";
-	AddModel(path);
 }
 
 Scene::~Scene()

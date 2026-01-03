@@ -10,11 +10,7 @@ class Texture;
 class DX12Commands;
 class DX12DescriptorHeap;
 class Scene;
-class SceneStage;
-class ShadowStage;
-class SkyBoxStage;
-class SphereMapConverterStage;
-class IBLBakerStage;
+class FluidStage;
 
 class Renderer
 {
@@ -119,11 +115,7 @@ private:
 
 	// ÉVÅ[Éìä÷òA
 	Scene* m_pScene = nullptr;
-	std::unique_ptr<SceneStage> m_pSceneStage = nullptr;
-	std::unique_ptr<ShadowStage> m_pShadowStage = nullptr;
-	std::unique_ptr<SkyBoxStage> m_pSkyBoxStage = nullptr;
-	std::unique_ptr<SphereMapConverterStage> m_pSphereMapConverterStage = nullptr;
-	std::unique_ptr<IBLBakerStage> m_pIBLBakerStage = nullptr;
+	std::unique_ptr<FluidStage> m_pFluidStage = nullptr;
 
 	uint32_t m_Width;
 	uint32_t m_Height;

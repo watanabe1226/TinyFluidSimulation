@@ -13,6 +13,7 @@ class SceneStage : public RenderStage
 {
 public:
 	SceneStage(Renderer* pRenderer, ShadowStage* pShadowStage, IBLBakerStage* pIBLBakerStage);
+	SceneStage(Renderer* pRenderer);
 	~SceneStage() override;
 	void SetScene(Scene* newScene);
 

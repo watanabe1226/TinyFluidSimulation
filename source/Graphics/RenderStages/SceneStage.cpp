@@ -20,6 +20,12 @@ SceneStage::SceneStage(Renderer* pRenderer, ShadowStage* pShadowStage, IBLBakerS
 	CreatePipeline(pRenderer);
 }
 
+SceneStage::SceneStage(Renderer* pRenderer) : RenderStage(pRenderer)
+{
+	CreateRootSignature(pRenderer);
+	CreatePipeline(pRenderer);
+}
+
 SceneStage::~SceneStage()
 {
 }

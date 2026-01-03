@@ -11,7 +11,7 @@ int WINAPI wWinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPWSTR pCmdLin
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 #endif
 	// ウィンドウのサイズを指定
-	Engine engine(1920, 1080);
+	Engine engine(960, 540);
 	engine.Run();
 
 	return 0;

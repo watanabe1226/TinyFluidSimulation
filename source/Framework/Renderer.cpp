@@ -21,6 +21,7 @@
 #include "Graphics/RenderStages/SkyBoxStage.h"
 #include "Graphics/RenderStages/SphereMapConverterStage.h"
 #include "Graphics/RenderStages/IBLBakerStage.h"
+#include "Graphics/RenderStages/FluidStage.h"
 
 #include <imgui.h>
 #include <backends/imgui_impl_win32.h>
@@ -56,33 +57,7 @@ Renderer::Renderer(uint32_t width, uint32_t height)
 	InitializeImGui();
 
 	// レンダーステージの作成
-	m_pShadowStage = std::make_unique<ShadowStage>(this);
-	m_pIBLBakerStage = std::make_unique<IBLBakerStage>(this);
-	m_pSceneStage = std::make_unique<SceneStage>(this, m_pShadowStage.get(), m_pIBLBakerStage.get());
-	m_pSkyBoxStage = std::make_unique<SkyBoxStage>(this);
-	m_pSphereMapConverterStage = std::make_unique<SphereMapConverterStage>(this, m_pSkyBoxStage->GetHDRITex()->GetResource()->GetDesc());
-	
-	// SphericalMapをCubeMapに変換
-	auto pCommandList = m_pDirectCommand->GetGraphicsCommandList().Get();
-	// コマンドの記録を開始とリセット
-	m_pDirectCommand->ResetCommand();
-	float clearColor[] = { 0.25f, 0.25f, 0.25f, 1.0f };
-	auto rtv = m_pWindow->GetCurrentScreenRTV();
-	auto dsv = m_pWindow->GetDepthDSV();
-	m_pSphereMapConverterStage->DrawToCube(pCommandList, m_pSkyBoxStage->GetSkyBoxGPUHandle());
-	
-	// ベイク処理
-	m_pIBLBakerStage->IntegrateDFG(pCommandList);
-
-	auto desc = m_pSphereMapConverterStage->GetCubeMapDesc();
-	auto GPUHandle = m_pSphereMapConverterStage->GetCubeMapHandleGPU();
-	m_pIBLBakerStage->IntegrateLD(pCommandList, static_cast<uint32_t>(desc.Width), desc.MipLevels, GPUHandle);
-	
-	// コマンドリストの実行
-	m_pDirectCommand->ExecuteCommandList();
-	// GPUの処理完了を待機
-	m_pDirectCommand->WaitGpu(INFINITE);
-
+	m_pFluidStage = std::make_unique<FluidStage>(this);
 }
 
 Renderer::~Renderer()
@@ -105,17 +80,15 @@ void Renderer::Render()
 	// コマンドの記録を開始とリセット
 	m_pDirectCommand->ResetCommand();
 
-	pCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-	pCommandList->SetDescriptorHeaps(1, m_pCBV_SRV_UAV->GetHeap().GetAddressOf());
-	// SceneのRender処理
-	m_pShadowStage->RecordStage(pCommandList);
+	//pCommandList->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+	//pCommandList->SetDescriptorHeaps(1, m_pCBV_SRV_UAV->GetHeap().GetAddressOf());
 
 	// リソースバリアの設定
 	TransitionResource(m_pWindow->GetCurrentScreenBuffer(),
 		D3D12_RESOURCE_STATE_PRESENT,
 		D3D12_RESOURCE_STATE_RENDER_TARGET);
-	m_pSceneStage->RecordStage(pCommandList);
-	m_pSkyBoxStage->RecordStage(pCommandList, m_pSphereMapConverterStage->GetCubeMapHandleGPU());
+
+	m_pFluidStage->RecordStage(pCommandList);
 	ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), pCommandList);
 
 	// リソースバリアの設定
@@ -134,22 +107,22 @@ void Renderer::Render()
 
 void Renderer::Update(float deltaTime)
 {
-	m_pShadowStage->Update(deltaTime);
+	// コマンドの記録を開始とリセット
+	m_pDirectCommand->ResetCommand();
+
+	//m_pFluidStage->UpdateSimulationGrid(deltaTime);
+	m_pFluidStage->UpdateSimulation(deltaTime);
+
+	// コマンドリストの実行
+	m_pDirectCommand->ExecuteCommandList();
+
+	m_pFluidStage->Update(deltaTime);
 }
 
 void Renderer::SetScene(Scene* newScene)
 {
 	m_pScene = newScene;
-	m_pSceneStage->SetScene(newScene);
-	m_pShadowStage->SetScene(newScene);
-	m_pSkyBoxStage->SetScene(newScene);
-	for (const auto& model : m_pScene->GetModels())
-	{
-		if (model->GetName() == "assets/models/SciFiHelm/SciFiHelmet.gltf")
-		{
-			model->SetPosition(Vector3D(0.0f, 1.5f, 0.0f));
-		}
-	}
+	m_pFluidStage->SetScene(newScene);
 }
 
 void Renderer::CreateTextureFromFile(const std::wstring& filePath)
