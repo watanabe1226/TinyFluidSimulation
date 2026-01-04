@@ -63,7 +63,7 @@ private:
 	void InitializeParticles();
 
 	// 定数
-	static const uint32_t MaxParticles = 5000;
+	static const uint32_t MaxParticles = 4000;
 	// グリッド
 	static constexpr float ParticleRadius = 0.05f;
 	static constexpr float CellSize = 1.0f * ParticleRadius;
@@ -112,17 +112,17 @@ private:
 	Renderer* m_pRenderer = nullptr;
 
 	float m_Gravity = -9.81f;
-	float m_H = 0.22f; // 影響範囲
+	float m_H = 0.15f; // 影響範囲
 	float m_Mass = 1.0f; // 質量
-	float m_Viscosity = 10.0; // 粘性係数
+	float m_Viscosity = 20.0f; // 粘性係数
 	float m_RestDensity = 1000.0f; // 静止密度
-	float m_Stiffness = 1000.0f; // 圧力計数
-	float m_NearStiffness = 100.0f; // 近傍圧力計数
-	float m_BoxWidth = 6.0f; // 初期幅
-	float m_MaxAllowableTimestep = 0.006f; // 時間刻み幅
+	float m_Stiffness = 50.0f; // 圧力計数
+	float m_NearStiffness = 10.0f; // 近傍圧力計数
+	float m_BoxWidth; // 初期幅
+	float m_MaxAllowableTimestep = 0.005f; // 時間刻み幅
 	float m_TimeStep = 0.0f;
-	uint32_t m_Iterations = 10; // シミュレーションの1フレーム当たりのイテレーション回数
+	uint32_t m_Iterations = 2; // シミュレーションの1フレーム当たりのイテレーション回数
 	// デフォルトの壁の範囲
-	Vector3D m_WallMin = Vector3D(-2.0f, 0.0f, -2.0f);
-	Vector3D m_WallMax = Vector3D(2.0f, 6.0f, 2.0f);
+	Vector3D m_WallMin = Vector3D(-3.0f, 0.0f, -2.0f);
+	Vector3D m_WallMax = Vector3D(3.0f, 6.0f, 2.0f);
 };

@@ -19,10 +19,10 @@ struct Particle
 // W(r, h) = 0                                         (r > h の場合)
 inline float Poly6Kernel(float r, float h)
 {
-    float h2 = h * h;
-    float r2 = r * r;
     if(r < h)
     {
+        float h2 = h * h;
+        float r2 = r * r;
         float term = h2 - r2;
         float coef = 315.0f / (64.0f * PI * pow(h, 9));
     
@@ -44,26 +44,26 @@ inline float NearDensityKernel(float r, float h)
     return 0.0f;
 }
 
-// 圧力計算用のカーネル関数
+// 近傍圧力計算用のカーネル関数
 inline float SpikyKernelGradient(float r, float h)
-{   
+{
     if (r <= h)
     {
         float term = h - r;
-        float coef = 15.0f / (PI * pow(h, 5));
-        return - coef * term;
+        float coef = -45.0f / (PI * pow(h, 6));
+        return coef * term * term;
     }
     return 0.0f;
 }
 
-// 近傍圧力計算用のカーネル関数
+// 圧力計算用のカーネル関数
 inline float NearSpikyKernelGradient(float r, float h)
-{    
+{   
     if (r <= h)
     {
         float term = h - r;
-        float coef = 45.0f / (PI * pow(h, 6));
-        return -coef * term * term;
+        float coef = -15.0f / (PI * pow(h, 5));
+        return coef * term;
     }
     return 0.0f;
 }
@@ -72,11 +72,12 @@ inline float NearSpikyKernelGradient(float r, float h)
 // ∇^2W(r, h) = (45 / (pi * h^6)) * (h - r)
 inline float ViscosityKernelLaplacian(float r, float h)
 {
-    if (r <= 0.0f || r > h)
-        return 0.0f;
-    
-    float coef = 45.0f / (PI * pow(h, 6));
-    return coef * (h - r);
+    if(r < h)
+    {
+        float coef = 45.0f / (PI * pow(h, 6));
+        return coef * (h - r);
+    }
+    return 0.0f;
 }
 
 inline int3 GetGridPos(float3 pos, float3 wallMin, float gridH, int3 gridDim)

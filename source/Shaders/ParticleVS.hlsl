@@ -51,10 +51,10 @@ VSOutput main(VSInput input, uint instanceID : SV_InstanceID)
 // デバッグ用: 密度可視化
     float density = Particles[instanceID].Density;
 
-    // ★修正: 基準密度(20.0)付近で色が変化するように調整
-    // 密度が 20.0 なら青(0.0)、30.0 なら赤(1.0) になるような計算
-    float nDensity = saturate((density - 150.0f) / 10.0f);
+    float targetDensity = 1000.0f; // C++のRestDensityと合わせる
+    float nDensity = saturate((density - targetDensity) / 200.0f); // 範囲を広げる
 
+    // 青(低密度) -> 赤(高密度)
     output.Color = float4(lerp(float3(0, 0.5, 1), float3(1, 0, 0), nDensity), 1.0f);
     return output;
 

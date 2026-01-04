@@ -38,10 +38,10 @@ void main(uint3 DTid : SV_DispatchThreadID)
     {                    
         float3 otherPosition = Particles[i].Position;
         float3 diff = myPosition - otherPosition;
-        float dist2 = dot(diff, diff);
-        float r = sqrt(dist2);
+        float r2 = dot(diff, diff);
+        float r = sqrt(r2);
         // 影響範囲「外」ならスキップ
-        if (dist2 >= h2) 
+        if (r2 >= h2 || r2 == 0.0f) 
             continue;
         
         float W = Poly6Kernel(r, H);
@@ -53,8 +53,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
     Particles[id].Density = density;
     Particles[id].NearDensity = nearDensity;
     
-    // 圧力 Tait方程式
-    //float pressure = Stiffness * max(pow(density / RestDensity, 7) - 1, 0);
-    float pressure = Stiffness * (density - RestDensity);
-    Particles[id].Pressure = pressure;
+    // 圧力 状態方程式
+    float densityError = density - RestDensity;
+    Particles[id].Pressure = Stiffness * max(densityError, 0);
 }

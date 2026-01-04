@@ -27,9 +27,10 @@ void main( uint3 DTid : SV_DispatchThreadID )
     if (id >= ParticleCount)
         return;
     
-    if(Particles[id].Density != 0.0f)
+    float myDensity = Particles[id].Density;
+    if (myDensity != 0.0f)
     {
-        float3 acceleration = Particles[id].Force / Particles[id].Density;
+        float3 acceleration = Particles[id].Force / myDensity;
 
         // 1. ボックスの「半分のサイズ」と「中心座標」を計算
         float3 halfRealBoxSize = (WallMax - WallMin) / 2.0f;
@@ -45,11 +46,9 @@ void main( uint3 DTid : SV_DispatchThreadID )
         float zPlusDist = halfRealBoxSize.z - localPos.z;
         float zMinusDist = halfRealBoxSize.z + localPos.z;
 
-        float wallStiffness = 1000.0f;
+        float wallStiffness = 10.0f;
 
-        // ベクトル計算
         float3 force = float3(0, 0, 0);
-        
         // X軸
         force.x += 1.0f * wallStiffness * min(xPlusDist, 0); // 右壁からの反発(左へ)
         force.x += -1.0f * wallStiffness * min(xMinusDist, 0); // 左壁からの反発(右へ)
@@ -63,7 +62,6 @@ void main( uint3 DTid : SV_DispatchThreadID )
         force.z += -1.0f * wallStiffness * min(zMinusDist, 0);
         
         acceleration += force;
-
         // 速度と位置の更新
         Particles[id].Velocity += acceleration * DeltaTime;
         Particles[id].Position += Particles[id].Velocity * DeltaTime;

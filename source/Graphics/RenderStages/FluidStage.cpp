@@ -156,7 +156,7 @@ void FluidStage::UpdateSimulation(float deltaTime)
 	auto CBVSRVUAVHeap = m_pRenderer->GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
 	// 定数バッファの更新
-	m_SimParam.DeltaTime = 0.003f;
+	m_SimParam.DeltaTime = m_MaxAllowableTimestep;
 	m_SimParam.Gravity = m_Gravity;
 	m_SimParam.Stiffness = m_Stiffness;
 	m_SimParam.RestDensity = m_RestDensity;
@@ -169,7 +169,10 @@ void FluidStage::UpdateSimulation(float deltaTime)
 	m_SimParam.WallMin = m_WallMin;
 	m_SimParam.WallMax = m_WallMax;
 
-	RunFluidSolver(pCmdlist, CBVSRVUAVHeap);
+	for (int i = 0; i < m_Iterations; ++i)
+	{
+		RunFluidSolver(pCmdlist, CBVSRVUAVHeap);
+	}
 }
 
 void FluidStage::RunFluidSolver(ID3D12GraphicsCommandList* pCmdlist, DX12DescriptorHeap* CBVSRVUAVHeap)
@@ -220,12 +223,12 @@ void FluidStage::Update(float deltaTime)
 	{
 		InitializeParticles();
 	}
-	ImGui::DragFloat("Gravity", &m_Gravity, 0.1f, -20.0f, 0.0f);
-	ImGui::DragFloat("Mass", &m_Mass, 0.1f, 0.0f, 10.0f);
-	ImGui::DragFloat("smoothRadius", &m_H, 0.1f, 0.0f, 10.0f);
-	ImGui::DragFloat("Viscosity", &m_Viscosity, 0.1f, 0.0f, 10.0f);
-	ImGui::DragFloat("RestDensity", &m_RestDensity, 1.0f, 0.0f, 5000.0f);
-	ImGui::DragFloat("Stiffness", &m_Stiffness, 1.0f, 0.0f, 5000.0f);
+	ImGui::SliderFloat("Gravity", &m_Gravity, -20.0f, 0.0f);
+	ImGui::SliderFloat("Mass", &m_Mass, 0.0f, 10.0f);
+	ImGui::SliderFloat("smoothRadius", &m_H, 0.01f, 0.5f);
+	ImGui::SliderFloat("Viscosity", &m_Viscosity, 0.0f, 100.0f);
+	ImGui::SliderFloat("RestDensity", &m_RestDensity, 0.0f, 5000.0f);
+	ImGui::SliderFloat("Stiffness", &m_Stiffness, 0.0f, 5000.0f);
 	if (ImGui::SliderFloat("Box Width", &m_BoxWidth, 1.0f, 10.0f))
 	{
 		// 幅が変わったら WallMin/Max の XとZ を更新
@@ -449,12 +452,12 @@ void FluidStage::InitializeParticles()
 
 	// 縦長の柱を作るための次元設定
 	// X, Z を狭く、Y を高くする
-	uint32_t dimX = 14;
+	uint32_t dimX = 30;
 	uint32_t dimZ = 14;
 	// 残りを高さ(Y)にする
 	uint32_t dimY = (MaxParticles + (dimX * dimZ) - 1) / (dimX * dimZ);
 
-	float spacing = 0.1f; // 粒子間隔 (H=0.2 の半分くらい)
+	float spacing = 0.12f; // 粒子間隔 (H=0.2 の半分くらい)
 
 	// 水槽の左隅などに寄せるためのオフセット
 	float startX = 0.0f;
@@ -484,12 +487,13 @@ void FluidStage::InitializeParticles()
 				particles[count].Density = 0.0f;
 				particles[count].Pressure = 0.0f;
 				particles[count].Force = Vector3D(0, 0, 0); // 初期力は0
-				particles[count].NearDensity = 0.0f;
+				particles[count].NearDensity = 1.0f;
 
 				count++;
 			}
 		}
 	}
+	m_BoxWidth = m_WallMax.x - m_WallMin.x;
 
 	void* ptr = nullptr;
 	m_pParticleUploadBuffer->Map(0, nullptr, &ptr);
