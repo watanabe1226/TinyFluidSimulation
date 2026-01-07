@@ -5,14 +5,14 @@ echo ==========================================
 echo Step 0: Setup Visual Studio Environment
 echo ==========================================
 
-:: msbuildコマンドがすでに使えるかチェック
+:: Check if msbuild is already available
 where msbuild >nul 2>nul
 if %errorlevel% equ 0 (
     echo [INFO] MSBuild is already available.
     goto START
 )
 
-:: 使えない場合、vswhereツールを使ってVSのインストール先を探す
+:: If not found, use vswhere to find Visual Studio installation
 echo [INFO] MSBuild not found. Searching for Visual Studio installation...
 set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 
@@ -22,7 +22,7 @@ if not exist "%VSWHERE%" (
     exit /b 1
 )
 
-:: 最新のVisual Studioのパスを取得
+:: Get path to the latest Visual Studio
 for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.Component.MSBuild -property installationPath`) do (
     set "VS_PATH=%%i"
 )
@@ -33,11 +33,11 @@ if not defined VS_PATH (
     exit /b 1
 )
 
-:: 環境変数をロードする (VsDevCmd.bat)
+:: Load environment variables (VsDevCmd.bat)
 echo [INFO] Found VS at: !VS_PATH!
 call "!VS_PATH!\Common7\Tools\VsDevCmd.bat" -arch=x64 -host_arch=x64 >nul
 
-:: 再度チェック
+:: Check again
 where msbuild >nul 2>nul
 if %errorlevel% neq 0 (
     echo [ERROR] Failed to setup Visual Studio environment.
@@ -73,7 +73,7 @@ echo [Building Assimp Release...]
 cmake --build . --config Release
 if %errorlevel% neq 0 goto ERROR
 
-:: --- config.h のコピー ---
+:: --- Copy config.h ---
 echo [Copying config.h...]
 copy /Y "include\assimp\config.h" "..\include\assimp\"
 if %errorlevel% neq 0 (
