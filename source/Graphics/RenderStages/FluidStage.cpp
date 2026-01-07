@@ -80,20 +80,36 @@ void FluidStage::UpdateSimulationGrid(float deltaTime)
 	auto pCmdlist = m_pRenderer->GetCommands(D3D12_COMMAND_LIST_TYPE_DIRECT)->GetGraphicsCommandList().Get();
 	auto CBVSRVUAVHeap = m_pRenderer->GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+	m_GridCellSize = m_H;
+	Vector3D range = m_WallMax - m_WallMin;
+	// 各軸のグリッド数を計算(切り上げ) +2は範囲外アクセス防止用のマージン
+	m_GridDim.x = ceil(range.x / m_GridCellSize) + 2;
+	m_GridDim.y = ceil(range.y / m_GridCellSize) + 2;
+	m_GridDim.z = ceil(range.z / m_GridCellSize) + 2;
+
+	m_TotalGridCount = m_GridDim.x * m_GridDim.y * m_GridDim.z;
 	// 定数バッファの更新
-	m_SimParam.DeltaTime = deltaTime;
+	m_SimParam.DeltaTime = m_MaxAllowableTimestep;
 	m_SimParam.Gravity = m_Gravity;
 	m_SimParam.Stiffness = m_Stiffness;
 	m_SimParam.RestDensity = m_RestDensity;
 	m_SimParam.nearStiffness = m_NearStiffness;
 	m_SimParam.ParticleCount = MaxParticles;
-	m_SimParam.WallMin = m_WallMin;
-	m_SimParam.WallMax = m_WallMax;
 	m_SimParam.Viscosity = m_Viscosity;
 	m_SimParam.H = m_H;
 	m_SimParam.Mass = m_Mass;
-	m_SimParam.gridCount = 32;
+	m_SimParam.GridDim = m_GridDim;
+	m_SimParam.WallMin = m_WallMin;
+	m_SimParam.WallMax = m_WallMax;
 
+	for (int i = 0; i < m_Iterations; ++i)
+	{
+		RunFluidSolverGrid(pCmdlist, CBVSRVUAVHeap);
+	}
+}
+
+void FluidStage::RunFluidSolverGrid(ID3D12GraphicsCommandList* pCmdlist, DX12DescriptorHeap* CBVSRVUAVHeap)
+{
 	// バリア設定: 処理開始前に Common -> UAV へ遷移
 	m_pRenderer->TransitionResource(m_pParticleBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	m_pRenderer->TransitionResource(m_pGridHeadBuffer.Get(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -113,7 +129,7 @@ void FluidStage::UpdateSimulationGrid(float deltaTime)
 
 	// グリッドの初期化 headを -1に設定
 	pCmdlist->SetPipelineState(m_pClearGridPSO->GetPipelineStatePtr());
-	pCmdlist->Dispatch((TotalGridCount + 255) / 256, 1, 1);
+	pCmdlist->Dispatch((m_TotalGridCount + 255) / 256, 1, 1);
 
 	// バリア: グリッドクリアの完了待ち
 	pCmdlist->ResourceBarrier(1, &uavBarrier);
@@ -165,7 +181,7 @@ void FluidStage::UpdateSimulation(float deltaTime)
 	m_SimParam.Viscosity = m_Viscosity;
 	m_SimParam.H = m_H;
 	m_SimParam.Mass = m_Mass;
-	m_SimParam.gridCount = 32;
+	m_SimParam.GridDim = m_GridDim;
 	m_SimParam.WallMin = m_WallMin;
 	m_SimParam.WallMax = m_WallMax;
 
@@ -228,12 +244,12 @@ void FluidStage::Update(float deltaTime)
 	ImGui::SliderFloat("smoothRadius", &m_H, 0.01f, 0.5f);
 	ImGui::SliderFloat("Viscosity", &m_Viscosity, 0.0f, 100.0f);
 	ImGui::SliderFloat("RestDensity", &m_RestDensity, 0.0f, 5000.0f);
-	ImGui::SliderFloat("Stiffness", &m_Stiffness, 0.0f, 5000.0f);
-	if (ImGui::SliderFloat("Box Width", &m_BoxWidth, 1.0f, 10.0f))
+	ImGui::SliderFloat("Stiffness", &m_Stiffness, 0.0f, 100.0f);
+	ImGui::SliderFloat("NearStiffness", &m_NearStiffness, 0.0f, 50.0f);
+	if (ImGui::SliderFloat("Box Width", &m_BoxWidth, 1.0f, MaxWallRange.x))
 	{
-		// 幅が変わったら WallMin/Max の XとZ を更新
-		m_WallMin.x = -m_BoxWidth;
-		m_WallMax.x = m_BoxWidth;
+		m_WallMin.x = -m_BoxWidth / 2;
+		m_WallMax.x = m_BoxWidth / 2;
 	}
 	ImGui::Text("Particle Count: %d", MaxParticles);
 	ImGui::End();
@@ -244,6 +260,11 @@ void FluidStage::CreateBuffers()
 	auto pDevice = m_pRenderer->GetDevice().Get();
 	auto CBVSRVUAVHeap = m_pRenderer->GetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
+	uint32_t maxDimX = ceil(MaxWallRange.x / MinCellSize) + 2;
+	uint32_t maxDimY = ceil(MaxWallRange.y / MinCellSize) + 2;
+	uint32_t maxDimZ = ceil(MaxWallRange.z / MinCellSize) + 2;
+
+	m_MaxGridCount = maxDimX * maxDimY * maxDimZ;
 	// ---------------------------------------------------------
 	// リソース（バッファ本体）の作成
 	// ---------------------------------------------------------
@@ -276,8 +297,8 @@ void FluidStage::CreateBuffers()
 
 	// 2. GridHead Buffer
 	{
-		uint32_t stride = sizeof(uint32_t);
-		uint32_t bufferSize = TotalGridCount * stride;
+		uint32_t stride = sizeof(int32_t);
+		uint32_t bufferSize = m_MaxGridCount * stride;
 		bufferDesc.Width = bufferSize;
 
 		ThrowFailed(pDevice->CreateCommittedResource(
@@ -290,7 +311,7 @@ void FluidStage::CreateBuffers()
 
 	// 3. GridNext Buffer
 	{
-		uint32_t stride = sizeof(uint32_t);
+		uint32_t stride = sizeof(int32_t);
 		uint32_t bufferSize = MaxParticles * stride;
 		bufferDesc.Width = bufferSize;
 
@@ -343,8 +364,8 @@ void FluidStage::CreateBuffers()
 	);
 
 	// --- 2. GridHead Buffer UAV (u1) ---
-	uavDesc.Buffer.NumElements = TotalGridCount;
-	uavDesc.Buffer.StructureByteStride = sizeof(uint32_t);
+	uavDesc.Buffer.NumElements = m_MaxGridCount;
+	uavDesc.Buffer.StructureByteStride = sizeof(int32_t);
 
 	pDevice->CreateUnorderedAccessView(
 		m_pGridHeadBuffer.Get(),
@@ -355,7 +376,7 @@ void FluidStage::CreateBuffers()
 
 	// --- 3. GridNext Buffer UAV (u2) ---
 	uavDesc.Buffer.NumElements = MaxParticles;
-	uavDesc.Buffer.StructureByteStride = sizeof(uint32_t);
+	uavDesc.Buffer.StructureByteStride = sizeof(int32_t);
 
 	pDevice->CreateUnorderedAccessView(
 		m_pGridNextBuffer.Get(),
@@ -447,51 +468,33 @@ void FluidStage::InitializeParticles()
 		IID_PPV_ARGS(m_pParticleUploadBuffer.GetAddressOf())
 	));
 
-	// ランダム配置
 	std::vector<Particle> particles(MaxParticles);
+	float margin = 0.1f;
+	Vector3D spawnMin = m_WallMin + Vector3D(margin, margin, margin);
+	Vector3D spawnMax = m_WallMax - Vector3D(margin, margin, margin);
+	Vector3D spawnRange = spawnMax - spawnMin;
 
-	// 縦長の柱を作るための次元設定
-	// X, Z を狭く、Y を高くする
-	uint32_t dimX = 30;
-	uint32_t dimZ = 14;
-	// 残りを高さ(Y)にする
-	uint32_t dimY = (MaxParticles + (dimX * dimZ) - 1) / (dimX * dimZ);
+	// 乱数シード初期化
+	srand((unsigned int)time(nullptr));
 
-	float spacing = 0.12f; // 粒子間隔 (H=0.2 の半分くらい)
-
-	// 水槽の左隅などに寄せるためのオフセット
-	float startX = 0.0f;
-	float startY = 0.2f;
-	float startZ = -0.0f;
-
-	uint32_t count = 0;
-	for (uint32_t y = 0; y < dimY; ++y)
+	for (uint32_t i = 0; i < MaxParticles; ++i)
 	{
-		for (uint32_t x = 0; x < dimX; ++x)
-		{
-			for (uint32_t z = 0; z < dimZ; ++z)
-			{
-				if (count >= MaxParticles) break;
+		// 0.0 ～ 1.0 の乱数生成
+		float rX = (float)rand() / RAND_MAX;
+		float rY = (float)rand() / RAND_MAX;
+		float rZ = (float)rand() / RAND_MAX;
 
-				// ランダムな微小なズレ(Jitter)を加えることで、対称性を崩し波を起こしやすくする
-				float jitterX = 0.002f * ((float)rand() / RAND_MAX);
-				float jitterY = 0.002f * ((float)rand() / RAND_MAX);
-				float jitterZ = 0.002f * ((float)rand() / RAND_MAX);
+		// 範囲内に配置
+		float posX = spawnMin.x + rX * spawnRange.x;
+		float posY = spawnMin.y + rY * spawnRange.y;
+		float posZ = spawnMin.z + rZ * spawnRange.z;
 
-				float posX = startX + x * spacing + jitterX;
-				float posY = startY + y * spacing + jitterY;
-				float posZ = startZ + z * spacing + jitterZ;
-
-				particles[count].Position = Vector3D(posX, posY, posZ);
-				particles[count].Velocity = Vector3D(0, 0, 0);
-				particles[count].Density = 0.0f;
-				particles[count].Pressure = 0.0f;
-				particles[count].Force = Vector3D(0, 0, 0); // 初期力は0
-				particles[count].NearDensity = 1.0f;
-
-				count++;
-			}
-		}
+		particles[i].Position = Vector3D(posX, posY, posZ);
+		particles[i].Velocity = Vector3D(0, 0, 0);
+		particles[i].Density = 0.0f;
+		particles[i].Pressure = 0.0f;
+		particles[i].Force = Vector3D(0, 0, 0);
+		particles[i].NearDensity = 0.0f;
 	}
 	m_BoxWidth = m_WallMax.x - m_WallMin.x;
 

@@ -32,7 +32,9 @@ struct alignas(256) SimulationParam
 	float Viscosity;
 	float H;
 	float Mass;
-	uint32_t gridCount;
+	float Padding0; // アライメント調整用
+	Vector3D GridDim;
+	float Padding1; // アライメント調整用
 };
 
 // 定数バッファ用構造体 (Vertex Shader用)
@@ -52,6 +54,7 @@ public:
 
 	void RecordStage(ID3D12GraphicsCommandList* pCmdList) override;
 	void UpdateSimulationGrid(float deltaTime);
+	void RunFluidSolverGrid(ID3D12GraphicsCommandList* pCmdlist, DX12DescriptorHeap* CBVSRVUAVHeap);
 	void UpdateSimulation(float deltaTime);
 	void RunFluidSolver(ID3D12GraphicsCommandList* pCmdlist, DX12DescriptorHeap* CBVSRVUAVHeap);
 	void Update(float deltaTime);
@@ -63,23 +66,14 @@ private:
 	void InitializeParticles();
 
 	// 定数
-	static const uint32_t MaxParticles = 4000;
-	// グリッド
-	static constexpr float ParticleRadius = 0.05f;
-	static constexpr float CellSize = 1.0f * ParticleRadius;
-	static constexpr float xHalfMax = 2.0f;
-	static constexpr float yHalfMax = 2.0f;
-	static constexpr float zHalfMax = 2.0f;
-	static constexpr float xLen = 2.0f * xHalfMax;
-	static constexpr float yLen = 2.0f * yHalfMax;
-	static constexpr float zLen = 2.0f * zHalfMax;
-	static constexpr float sentinel = 4.0f * CellSize;
-	static constexpr float offset = sentinel / 2.0f;
-	static constexpr uint32_t GridCountX = static_cast<uint32_t>((xLen + sentinel) / CellSize); // X軸方向の分割数
-	static constexpr uint32_t GridCountY = static_cast<uint32_t>((xLen + sentinel) / CellSize);
-	static constexpr uint32_t GridCountZ = static_cast<uint32_t>((xLen + sentinel) / CellSize);
-	static constexpr uint32_t TotalGridCount = GridCountX * GridCountY * GridCountZ; // 総セル数
-
+	static const uint32_t MaxParticles = 20000;
+	// グリッド関連
+	float m_GridCellSize = 0.0f;// グリッドのセルサイズ (m_Hと同じ)
+	Vector3D m_GridDim = Vector3D(0, 0, 0 ); // グリッドの次元数 (X, Y, Z それぞれのセル数)
+	uint32_t m_TotalGridCount = 0; // 総グリッド数 (GridHeadバッファのサイズ)
+	const Vector3D MaxWallRange = Vector3D(20.0f, 20.0f, 20.0f);
+	const float MinCellSize = 0.1f; // 想定する最小セルサイズ（Hの最小値）
+	uint32_t m_MaxGridCount = 0;
 	// リソース
 	ComPtr<ID3D12Resource> m_pParticleBuffer;      // 粒子の位置などを保持するバッファ
 	ComPtr<ID3D12Resource> m_pParticleUploadBuffer; // 初期化用
@@ -112,17 +106,17 @@ private:
 	Renderer* m_pRenderer = nullptr;
 
 	float m_Gravity = -9.81f;
-	float m_H = 0.15f; // 影響範囲
-	float m_Mass = 1.0f; // 質量
+	float m_H = 0.16f; // 影響範囲
+	float m_Mass = 0.5f; // 質量
 	float m_Viscosity = 20.0f; // 粘性係数
-	float m_RestDensity = 1000.0f; // 静止密度
-	float m_Stiffness = 50.0f; // 圧力計数
+	float m_RestDensity = 300.0f; // 静止密度
+	float m_Stiffness = 100.0f; // 圧力計数
 	float m_NearStiffness = 10.0f; // 近傍圧力計数
 	float m_BoxWidth; // 初期幅
-	float m_MaxAllowableTimestep = 0.005f; // 時間刻み幅
+	float m_MaxAllowableTimestep = 0.006f; // 時間刻み幅
 	float m_TimeStep = 0.0f;
-	uint32_t m_Iterations = 2; // シミュレーションの1フレーム当たりのイテレーション回数
+	uint32_t m_Iterations = 1; // シミュレーションの1フレーム当たりのイテレーション回数
 	// デフォルトの壁の範囲
-	Vector3D m_WallMin = Vector3D(-3.0f, 0.0f, -2.0f);
-	Vector3D m_WallMax = Vector3D(3.0f, 6.0f, 2.0f);
+	Vector3D m_WallMin = Vector3D(-2.0f, 0.0f, -2.0f);
+	Vector3D m_WallMax = Vector3D(2.0f, 4.0f, 2.0f);
 };

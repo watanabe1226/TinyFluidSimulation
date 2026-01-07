@@ -80,15 +80,22 @@ inline float ViscosityKernelLaplacian(float r, float h)
     return 0.0f;
 }
 
-inline int3 GetGridPos(float3 pos, float3 wallMin, float gridH, int3 gridDim)
+inline int3 GetGridPos(float3 pos, float3 wallMin, float H)
 {
-    return clamp(int3((pos - wallMin) / gridH), int3(0, 0, 0), gridDim - 1);
+    float3 localPos = pos - wallMin;
+    return (int3)floor(localPos / H) + 1;
 }
 
 // 座標からグリッドのインデックスを取得
 inline int GetGridIndex(int3 gridPos, int3 gridDim)
 {
-    return gridPos.x + gridPos.y * gridDim.x + gridPos.z * gridDim.x * gridDim.y;
+    if (gridPos.x < 0 || gridPos.x >= gridDim.x ||
+        gridPos.y < 0 || gridPos.y >= gridDim.y ||
+        gridPos.z < 0 || gridPos.z >= gridDim.z)
+    {
+        return -1; // 無効値
+    }
+    return gridPos.x + (gridPos.y * gridDim.x) + (gridPos.z * gridDim.x * gridDim.y);
 }
 
 #endif // SPH_COMMON_HLSLI

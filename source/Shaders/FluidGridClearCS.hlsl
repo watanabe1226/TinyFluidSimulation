@@ -17,7 +17,9 @@ cbuffer SimulationParam : register(b0)
     float Viscosity;
     float H;
     float Mass;
-    uint gridCount;
+    float Padding0;
+    float3 GridDim;
+    float Padding1;
 }
 
 // グリッドのリセット
@@ -25,8 +27,9 @@ cbuffer SimulationParam : register(b0)
 void main(uint3 DTid : SV_DispatchThreadID)
 {
     uint id = DTid.x;
-    if(id >= gridCount * 3) return;
-    
+    uint totalGridCount = uint(GridDim.x * GridDim.y * GridDim.z);
+    if (id >= totalGridCount)
+        return;
     // -1で初期化
     GridHead[id] = -1;
 }

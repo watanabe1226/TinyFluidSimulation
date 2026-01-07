@@ -1,8 +1,8 @@
 #include "SPHCommon.hlsli"
 
 RWStructuredBuffer<Particle> Particles : register(u0);
-RWStructuredBuffer<uint> GridHead : register(u1);
-RWStructuredBuffer<uint> GridNext : register(u2);
+RWStructuredBuffer<int> GridHead : register(u1);
+RWStructuredBuffer<int> GridNext : register(u2);
 
 cbuffer SimulationParam : register(b0)
 {
@@ -17,7 +17,9 @@ cbuffer SimulationParam : register(b0)
     float Viscosity;
     float H;
     float Mass;
-    uint gridCount;
+    float Padding0;
+    float3 GridDim;
+    float Padding1;
 }
 
 [numthreads(256, 1, 1)]
@@ -26,13 +28,13 @@ void main( uint3 DTid : SV_DispatchThreadID )
     uint id = DTid.x;
     if (id >= ParticleCount)
         return;
-    
+    float wallFriction = 0.01f;
     float myDensity = Particles[id].Density;
+    float3 acceleration = float3(0, 0, 0);
     if (myDensity != 0.0f)
     {
-        float3 acceleration = Particles[id].Force / myDensity;
-
-        // 1. ボックスの「半分のサイズ」と「中心座標」を計算
+        acceleration = Particles[id].Force / myDensity;
+            // 1. ボックスの「半分のサイズ」と「中心座標」を計算
         float3 halfRealBoxSize = (WallMax - WallMin) / 2.0f;
         float3 boxCenter = (WallMax + WallMin) / 2.0f;
 
@@ -46,7 +48,7 @@ void main( uint3 DTid : SV_DispatchThreadID )
         float zPlusDist = halfRealBoxSize.z - localPos.z;
         float zMinusDist = halfRealBoxSize.z + localPos.z;
 
-        float wallStiffness = 10.0f;
+        float wallStiffness = 6000.0f;
 
         float3 force = float3(0, 0, 0);
         // X軸
@@ -60,10 +62,15 @@ void main( uint3 DTid : SV_DispatchThreadID )
         // Z軸
         force.z += 1.0f * wallStiffness * min(zPlusDist, 0);
         force.z += -1.0f * wallStiffness * min(zMinusDist, 0);
-        
+       
         acceleration += force;
-        // 速度と位置の更新
         Particles[id].Velocity += acceleration * DeltaTime;
+        float maxSpeed = 10.0f;
+        float speed = length(Particles[id].Velocity);
+        if (speed > maxSpeed)
+        {
+            Particles[id].Velocity = normalize(Particles[id].Velocity) * maxSpeed;
+        }
         Particles[id].Position += Particles[id].Velocity * DeltaTime;
     }
 }

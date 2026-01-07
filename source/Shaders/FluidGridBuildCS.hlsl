@@ -1,8 +1,8 @@
 #include "SPHCommon.hlsli"
 
 RWStructuredBuffer<Particle> Particles : register(u0);
-RWStructuredBuffer<uint> GridHead : register(u1);
-RWStructuredBuffer<uint> GridNext : register(u2);
+RWStructuredBuffer<int> GridHead : register(u1);
+RWStructuredBuffer<int> GridNext : register(u2);
 
 cbuffer SimulationParam : register(b0)
 {
@@ -17,7 +17,9 @@ cbuffer SimulationParam : register(b0)
     float Viscosity;
     float H;
     float Mass;
-    uint gridCount;
+    float Padding0;
+    float3 GridDim;
+    float Padding1;
 }
 
 // pass2 パーティクルをグリッドに登録
@@ -28,17 +30,22 @@ void main(uint3 DTid : SV_DispatchThreadID)
     if (id >= ParticleCount) return;
     
     float3 pos = Particles[id].Position;
-    int3 gridDim = int3(gridCount, gridCount, gridCount);
     // 自分がどのグリッドにいるかどうか計算
-    int3 gridPos = GetGridPos(pos, WallMin, H, gridDim);
-    int gridIndex = GetGridIndex(gridPos, gridDim);
+    int3 gridPos = GetGridPos(pos, WallMin, H);
+    int gridIndex = GetGridIndex(gridPos, GridDim);
     
     // リンクリストへの挿入
-    int originalHead;
-    // GridHead[gridIndex]に自身のidを書き込み、古い値をoriginalHeadに受け取る
-    InterlockedExchange(GridHead[gridIndex], id, originalHead);
-    
-    // 古いheadを自分のnextに設定
-    GridNext[id] = originalHead;
+    if(gridIndex != -1)
+    {
+        int oldHead;
+        // GridHead[gridIndex]に自身のidを書き込み、古い値をoldHeadに受け取る
+        InterlockedExchange(GridHead[gridIndex], id, oldHead);
+        // 古いheadを自分のnextに設定
+        GridNext[id] = oldHead;
+    }
+    else
+    {
+        GridNext[id] = -1;
+    }
 
 }

@@ -107,16 +107,16 @@ void Renderer::Render()
 
 void Renderer::Update(float deltaTime)
 {
+	m_pFluidStage->Update(deltaTime);
 	// コマンドの記録を開始とリセット
 	m_pDirectCommand->ResetCommand();
 
-	//m_pFluidStage->UpdateSimulationGrid(deltaTime);
-	m_pFluidStage->UpdateSimulation(deltaTime);
+	m_pFluidStage->UpdateSimulationGrid(deltaTime);
+	//m_pFluidStage->UpdateSimulation(deltaTime);
 
 	// コマンドリストの実行
 	m_pDirectCommand->ExecuteCommandList();
 
-	m_pFluidStage->Update(deltaTime);
 }
 
 void Renderer::SetScene(Scene* newScene)
