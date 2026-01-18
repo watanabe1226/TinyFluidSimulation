@@ -7,8 +7,8 @@ DirectX 12 APIを用いた、物理シミュレーション
 
 https://github.com/user-attachments/assets/81dd4665-d3e5-4d31-9658-b9881ffdb077
 
-
-
+## セットアップ方法
+BuildExternal.batを起動
 
 ## 主な機能 (Features)
 
